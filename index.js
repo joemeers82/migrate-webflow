@@ -1,14 +1,15 @@
-// Required modules
-const axios = require("axios");
-const fetch = require("node-fetch");
-const readline = require("readline");
-const { createClient } = require("@sanity/client");
-const { htmlToBlocks } = require("@sanity/block-tools");
-const { Schema } = require("@sanity/schema");
-const { JSDOM } = require("jsdom");
+// index.js
 
-// Load environment variables
-require("dotenv").config();
+import dotenv from "dotenv";
+dotenv.config();
+
+import fetch from "node-fetch";
+import axios from "axios";
+import readline from "readline";
+import { createClient } from "@sanity/client";
+import { htmlToBlocks } from "@sanity/block-tools";
+import { Schema } from "@sanity/schema";
+import { JSDOM } from "jsdom";
 
 // Extract specific environment variables
 const { WEBFLOW_API_KEY, SANITY_PROJECT_ID, SANITY_DATASET, SANITY_TOKEN } =
@@ -159,27 +160,32 @@ const blockContentType = Schema.compile({
 
 // Function to map a Webflow item to the corresponding Sanity schema
 function mapToSanitySchema(webflowItem) {
+  console.log(webflowItem.fieldData);
+  console.log(webflowItem.fieldData["post-body"]);
   const file_url = webflowItem["file-url"] || "";
 
   const { window } = new JSDOM("");
   const DOMParser = window.DOMParser;
   global.DOMParser = DOMParser; // You may want to reset this afterward if you're concerned about polluting the global namespace
 
-  const blockContent = htmlToBlocks(webflowItem["rich-text"], blockContentType);
+  const blockContent = htmlToBlocks(
+    webflowItem.fieldData["post-body"],
+    blockContentType
+  );
 
   return {
     _type: "exampleSchema",
     // keep the original ID in case we need to reference it later
-    _id: `imported-${webflowItem._id}`,
+    _id: `imported-${webflowItem.id}`,
     // map the title to the title field in Sanity
-    title: webflowItem.heading,
+    title: webflowItem.fieldData["name"],
     // strip html br and p tags
-    description: webflowItem.description
-      .replace(/<br>/g, "")
-      .replace(/<p>/g, "")
-      .replace(/<\/p>/g, ""),
+    // description: webflowItem.description
+    //   .replace(/<br>/g, "")
+    //   .replace(/<p>/g, "")
+    //   .replace(/<\/p>/g, ""),
     // map the slug to the slug field in Sanity
-    slug: { current: webflowItem.slug },
+    slug: { current: webflowItem.fieldData.slug },
     // mapped html to block content
     body: blockContent,
     // if the image is not set, we don't want to set the field at all
@@ -204,6 +210,7 @@ function mapToSanitySchema(webflowItem) {
 
 // Function to handle the upload of documents to Sanity
 async function uploadToSanity(sanityDocuments) {
+  console.log("starting to upload to sanity");
   for (const document of sanityDocuments) {
     try {
       // Handle image upload if it exists
@@ -221,8 +228,8 @@ async function uploadToSanity(sanityDocuments) {
         const buffer = await response.buffer();
         // Assuming the file should be uploaded as a JSON file
         const asset = await sanity.assets.upload("file", buffer, {
-          filename: document._id, // you can provide a more meaningful filename if you have one
-          contentType: "application/json", // specify the content-type
+          filename: document._id,
+          contentType: "application/json",
         });
         document.file.asset = { _ref: asset._id };
       }
@@ -255,7 +262,7 @@ async function main() {
 
   // Map Webflow items to Sanity schema
   const sanityDocuments = webflowItems.map((item) => mapToSanitySchema(item));
-
+  console.log(sanityDocuments);
   // Upload documents to Sanity
   uploadToSanity(sanityDocuments);
 
